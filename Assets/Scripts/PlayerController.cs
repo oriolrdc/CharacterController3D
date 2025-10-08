@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.UIElements;
 
 public class PlayerController : MonoBehaviour
 {
@@ -8,6 +9,9 @@ public class PlayerController : MonoBehaviour
     //Inputs 
     private InputAction _moveAction;
     private InputAction _jumpAction;
+    private InputAction _lookAction;
+    private InputAction _aimAction;
+    [SerializeField] private Vector2 _lookInput;
     private Vector2 _moveInput;
     //Variables
     [SerializeField] private float _jumpHeight = 2;
@@ -21,7 +25,8 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private Transform _sensor;
     [SerializeField] private LayerMask _groundLayer;
     [SerializeField] private float _sensorRadius;
-
+    //Camera
+    private Transform _mainCamera;
 
 
 
@@ -31,6 +36,9 @@ public class PlayerController : MonoBehaviour
         _controller = GetComponent<CharacterController>();
         _moveAction = InputSystem.actions["Move"];
         _jumpAction = InputSystem.actions["Jump"];
+        _lookAction = InputSystem.actions["Look"];
+        _aimAction = InputSystem.actions["Aim"];
+        _mainCamera = Camera.main.transform;
     }
 
     void Start()
@@ -41,7 +49,19 @@ public class PlayerController : MonoBehaviour
 
     void Update()
     {
-        MovimientoCutre();
+        _moveInput = _moveAction.ReadValue<Vector2>();
+        _lookInput = _lookAction.ReadValue<Vector2>();
+
+        //MovimientoCutre();
+        //MovimientoHades();
+        if (_aimAction.IsInProgress())
+        {
+            AimMovment();
+        }
+        else
+        {
+            Movment();
+        }
 
         if (_jumpAction.WasPressedThisFrame() && IsGrounded())
         {
@@ -51,9 +71,56 @@ public class PlayerController : MonoBehaviour
         Gravity();
     }
 
+    void Movment()
+    {
+        Vector3 direction = new Vector3(_moveInput.x, 0, _moveInput.y);
+        if (direction != Vector3.zero)
+        {
+            float targetAngle = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg + _mainCamera.eulerAngles.y;
+            float smoothAngle = Mathf.SmoothDampAngle(transform.eulerAngles.y, targetAngle, ref _turnSmoothVelocity, _smoothTime);
+            transform.rotation = Quaternion.Euler(0, smoothAngle, 0);
+            Vector3 moveDirection = Quaternion.Euler(0, targetAngle, 0) * Vector3.forward;
+            _controller.Move(moveDirection.normalized * _movementSpeed * Time.deltaTime);
+        }
+    }
+
+    void AimMovment()
+    {
+        Vector3 direction = new Vector3(_moveInput.x, 0, _moveInput.y);
+        float targetAngle = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg + _mainCamera.eulerAngles.y;
+        float smoothAngle = Mathf.SmoothDampAngle(transform.eulerAngles.y, _mainCamera.eulerAngles.y, ref _turnSmoothVelocity, _smoothTime);
+        transform.rotation = Quaternion.Euler(0, smoothAngle, 0);
+
+        if (direction != Vector3.zero)
+        {
+            Vector3 moveDirection = Quaternion.Euler(0, targetAngle, 0) * Vector3.forward;
+            _controller.Move(moveDirection.normalized * _movementSpeed * Time.deltaTime);
+        }
+    }
+
+    void MovimientoHades()
+    {
+        Vector3 direction = new Vector3(_moveInput.x, 0, _moveInput.y);
+
+        Ray ray = Camera.main.ScreenPointToRay(_lookInput);
+        RaycastHit hit;
+
+        if (Physics.Raycast(ray, out hit, Mathf.Infinity))
+        {
+            Vector3 playerForward = hit.point - transform.position;
+            Debug.Log(hit.transform.name);
+            playerForward.y = 0;
+            transform.forward = playerForward;
+        }
+
+        if (direction != Vector3.zero)
+        {
+            _controller.Move(direction.normalized * _movementSpeed * Time.deltaTime);
+        }
+    }
+
     void MovimientoCutre()
     {
-        _moveInput = _moveAction.ReadValue<Vector2>();
         Vector3 direction = new Vector3(_moveInput.x, 0, _moveInput.y);
 
         if (direction != Vector3.zero)
