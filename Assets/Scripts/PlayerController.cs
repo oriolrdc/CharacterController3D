@@ -69,6 +69,27 @@ public class PlayerController : MonoBehaviour
         }
 
         Gravity();
+
+        if(_aimAction.WasPerformedThisFrame())
+        {
+            Attack();
+        }
+    }
+
+    void Attack()
+    {
+        //Como tienes herencia en un script de enemy general puedes simplemente llamara al script "Padre" y no necesitas 20 if
+        Ray ray = Camera.main.ScreenPointToRay(_lookInput);
+        RaycastHit hit;
+
+        if (Physics.Raycast(ray, out hit, Mathf.Infinity))
+        {
+            IDamageable damageable = hit.transform.GetComponent<IDamageable>();
+            if (damageable != null)
+            {
+                damageable.TakeDamage();
+            }
+        }
     }
 
     void Movment()
