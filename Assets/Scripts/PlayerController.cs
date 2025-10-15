@@ -1,11 +1,11 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
-using UnityEngine.UIElements;
 
 public class PlayerController : MonoBehaviour
 {
     //Componentes
     private CharacterController _controller;
+    private Animator _animator;
     //Inputs 
     private InputAction _moveAction;
     private InputAction _jumpAction;
@@ -39,6 +39,7 @@ public class PlayerController : MonoBehaviour
         _lookAction = InputSystem.actions["Look"];
         _aimAction = InputSystem.actions["Aim"];
         _mainCamera = Camera.main.transform;
+        _animator = GetComponentInChildren<Animator>();
     }
 
     void Start()
@@ -95,6 +96,9 @@ public class PlayerController : MonoBehaviour
     void Movment()
     {
         Vector3 direction = new Vector3(_moveInput.x, 0, _moveInput.y);
+        _animator.SetFloat("Vertical", direction.magnitude);
+        _animator.SetFloat("Horizontal", 0);
+
         if (direction != Vector3.zero)
         {
             float targetAngle = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg + _mainCamera.eulerAngles.y;
@@ -108,6 +112,8 @@ public class PlayerController : MonoBehaviour
     void AimMovment()
     {
         Vector3 direction = new Vector3(_moveInput.x, 0, _moveInput.y);
+        _animator.SetFloat("Horizontal", _moveInput.x);
+        _animator.SetFloat("Vertical", _moveInput.y);
         float targetAngle = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg + _mainCamera.eulerAngles.y;
         float smoothAngle = Mathf.SmoothDampAngle(transform.eulerAngles.y, _mainCamera.eulerAngles.y, ref _turnSmoothVelocity, _smoothTime);
         transform.rotation = Quaternion.Euler(0, smoothAngle, 0);
@@ -160,6 +166,7 @@ public class PlayerController : MonoBehaviour
 
     void Jump()
     {
+        _animator.SetBool("IsJumping", true);
         _playerGravity.y = Mathf.Sqrt(_jumpHeight * -2 * _gravity);
         _controller.Move(_playerGravity * Time.deltaTime);
     }
@@ -171,12 +178,13 @@ public class PlayerController : MonoBehaviour
             //Añade la fuerza de gravedad a la y del personaje
             _playerGravity.y += _gravity * Time.deltaTime;
         }
-        else if (IsGrounded() && _playerGravity.y < _gravity)
+        else if (IsGrounded() && _playerGravity.y < 0)
         {
             _playerGravity.y = _gravity;
+            _animator.SetBool("IsJumping", false);
         }
         //Aplica la gravedad al personaje
-            _controller.Move(_playerGravity * Time.deltaTime);
+        _controller.Move(_playerGravity * Time.deltaTime);
     }
 
     bool IsGrounded()
