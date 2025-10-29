@@ -1,3 +1,4 @@
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -11,14 +12,18 @@ public class PlayerController : MonoBehaviour
     private InputAction _jumpAction;
     private InputAction _lookAction;
     private InputAction _aimAction;
+    private InputAction _throwAction;
     [SerializeField] private Vector2 _lookInput;
+    private InputAction _grabAction;
     private Vector2 _moveInput;
     //Variables
     [SerializeField] private float _jumpHeight = 2;
     [SerializeField] private float _movementSpeed = 5;
     [SerializeField] private float _smoothTime = 0.2f;
     private float _turnSmoothVelocity;
-    //Gravedad
+    [SerializeField] private float _pushForce = 10;
+    [SerializeField] private float _throwForce = 20;
+    //Gravedad 
     [SerializeField] private float _gravity = -9.81f;
     [SerializeField] private Vector3 _playerGravity;
     //GroundSensor
@@ -27,8 +32,10 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float _sensorRadius;
     //Camera
     private Transform _mainCamera;
-
-
+    //Pillar cosillas y tal
+    [SerializeField] private Transform _hands;
+    [SerializeField] private Transform _grabedObject;
+    [SerializeField] private Vector3 _handsSize = new Vector3(0.5f, 0.5f, 0.5f);
 
 
     void Awake()
@@ -38,6 +45,8 @@ public class PlayerController : MonoBehaviour
         _jumpAction = InputSystem.actions["Jump"];
         _lookAction = InputSystem.actions["Look"];
         _aimAction = InputSystem.actions["Aim"];
+        _grabAction = InputSystem.actions["Interact"];
+        _throwAction = InputSystem.actions["Throw"];
         _mainCamera = Camera.main.transform;
         _animator = GetComponentInChildren<Animator>();
     }
@@ -71,10 +80,20 @@ public class PlayerController : MonoBehaviour
 
         Gravity();
 
-        if(_aimAction.WasPerformedThisFrame())
+        if (_aimAction.WasPerformedThisFrame())
         {
             Attack();
         }
+
+        if (_grabAction.WasPressedThisFrame())
+        {
+            GrabObject();
+        }
+        if (_throwAction.WasPerformedThisFrame())
+        {
+            Throw();
+        }
+        RayTest();
     }
 
     void Attack()
@@ -88,7 +107,7 @@ public class PlayerController : MonoBehaviour
             IDamageable damageable = hit.transform.GetComponent<IDamageable>();
             if (damageable != null)
             {
-                damageable.TakeDamage();
+                damageable.TakeDamage(5);
             }
         }
     }
@@ -125,7 +144,7 @@ public class PlayerController : MonoBehaviour
         }
     }
 
-    void MovimientoHades()
+    /*void MovimientoHades()
     {
         Vector3 direction = new Vector3(_moveInput.x, 0, _moveInput.y);
 
@@ -144,9 +163,9 @@ public class PlayerController : MonoBehaviour
         {
             _controller.Move(direction.normalized * _movementSpeed * Time.deltaTime);
         }
-    }
+    }*/
 
-    void MovimientoCutre()
+    /*void MovimientoCutre()
     {
         Vector3 direction = new Vector3(_moveInput.x, 0, _moveInput.y);
 
@@ -162,7 +181,7 @@ public class PlayerController : MonoBehaviour
             _controller.Move(direction.normalized * _movementSpeed * Time.deltaTime);
         }
 
-    }
+    }*/
 
     void Jump()
     {
@@ -187,14 +206,133 @@ public class PlayerController : MonoBehaviour
         _controller.Move(_playerGravity * Time.deltaTime);
     }
 
-    bool IsGrounded()
+    /*bool IsGrounded()
     {
         return Physics.CheckSphere(_sensor.position, _sensorRadius, _groundLayer);
+    }*/
+
+    bool IsGrounded()
+    {
+        if (Physics.Raycast(_sensor.position, -transform.up, _sensorRadius, _groundLayer))
+        {
+            Debug.DrawRay(_sensor.position, -transform.up * _sensorRadius, Color.green);
+            return true;
+        }
+        else
+        {
+            Debug.DrawRay(_sensor.position, -transform.up * _sensorRadius, Color.red);
+            return false;
+        }
     }
 
     void OnDrawGizmos()
     {
         Gizmos.color = Color.green;
         Gizmos.DrawWireSphere(_sensor.position, _sensorRadius);
+
+        Gizmos.color = Color.red;
+        Gizmos.DrawWireCube(_hands.position, _handsSize);
     }
+
+    void OnControllerColliderHit(ControllerColliderHit hit)
+    {
+        if(hit.transform.gameObject.tag == "Empujable")
+        {
+            Rigidbody rBody = hit.collider.attachedRigidbody;
+            //Rigidbody rBody = hit.transform.GetComponent<Rigidbody>();
+            //es buena idea comprobar si esta vacio el rbody, para que no salten errores y se joda el juego.
+            if(rBody == null || rBody.isKinematic)
+            {
+                return;
+            }
+            //hit.moveDirection te da la direccion en la que iba el controller antes de dar el golpe
+            Vector3 pushDirection = new Vector3(hit.moveDirection.x, 0, hit.moveDirection.z);
+            rBody.linearVelocity = pushDirection * _pushForce / rBody.mass;
+        }
+    }
+
+    void GrabObject()
+    {
+        if (_grabedObject == null)
+        {
+            Collider[] objectsToGrab = Physics.OverlapBox(_hands.position, _handsSize);
+            foreach (Collider item in objectsToGrab)
+            {
+                IGrabeable grabeableObject = item.GetComponent<IGrabeable>();
+                if (grabeableObject != null)
+                {
+                    _grabedObject = item.transform;
+                    _grabedObject.SetParent(_hands);
+                    _grabedObject.position = _hands.position;
+                    _grabedObject.rotation = _hands.rotation;
+                    _grabedObject.GetComponent<Rigidbody>().isKinematic = true;
+
+                    return;
+                }
+            }
+        }
+        else
+        {
+            _grabedObject.SetParent(null);
+            _grabedObject.GetComponent<Rigidbody>().isKinematic = false;
+            _grabedObject = null;
+        }
+
+    }
+
+    void Throw()
+    {
+        if (_grabedObject == null)
+        {
+            return;
+        }
+
+        Rigidbody grabedBody = _grabedObject.GetComponent<Rigidbody>();
+        _grabedObject.SetParent(null);
+        grabedBody.isKinematic = false;
+        grabedBody.AddForce(_mainCamera.transform.forward * _throwForce, ForceMode.Impulse);
+        _grabedObject = null;
+    }
+    
+    void RayTest()
+    {
+        //Raycast simple
+        //Dispara el rayo y si choca con algo ejecuta lo de dentro del if, pero no puedes sacar info ni nada complejo.
+        if (Physics.Raycast(transform.position, transform.forward, 5))
+        {
+            Debug.DrawRay(transform.position, transform.forward * 5, Color.green);
+            Debug.Log("Muelto");
+        }
+        else
+        {
+            Debug.Log("Eres muy malo");
+            Debug.DrawRay(transform.position, transform.forward * 5, Color.red);
+        }
+
+        //Raycast "Avanzado"
+        RaycastHit hit;
+        if(Physics.Raycast(transform.position, transform.forward, out hit, 5))
+        {
+            Debug.Log(hit.transform.name);
+            Debug.Log(hit.transform.position);
+            Debug.Log(hit.transform.gameObject.layer);
+            Debug.Log(hit.transform.tag);
+
+            /*if(hit.transform.tag == "Empujable")
+            {
+                Box box = hit.transform.GetComponent<Box>();
+                if(box != null)
+                {
+                    Debug.Log("Tengo hambre");
+                }
+            }*/
+
+            IDamageable damageable = hit.transform.GetComponent<IDamageable>();
+            if(damageable != null)
+            {
+                damageable.TakeDamage(5);
+            }
+        }
+    }
+    
 }
