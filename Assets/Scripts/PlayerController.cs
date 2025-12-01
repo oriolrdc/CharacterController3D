@@ -61,9 +61,11 @@ public class PlayerController : MonoBehaviour
     {
         _moveInput = _moveAction.ReadValue<Vector2>();
         _lookInput = _lookAction.ReadValue<Vector2>();
-
+        
         //MovimientoCutre();
         //MovimientoHades();
+        Gravity();
+
         if (_aimAction.IsInProgress())
         {
             AimMovment();
@@ -77,8 +79,6 @@ public class PlayerController : MonoBehaviour
         {
             Jump();
         }
-
-        Gravity();
 
         if (_aimAction.WasPerformedThisFrame())
         {
@@ -112,27 +112,84 @@ public class PlayerController : MonoBehaviour
         }
     }
 
+    [SerializeField] float _speedChangeRate = 10;
+    float _speed;
+    float _animationSpeed;
+    float sprintSpeed = 10;
+    bool isSprinting = false;
+    float targetAngle;
+
+
     void Movment()
     {
         Vector3 direction = new Vector3(_moveInput.x, 0, _moveInput.y);
-        _animator.SetFloat("Vertical", direction.magnitude);
-        _animator.SetFloat("Horizontal", 0);
+
+        float targetSpeed = _movementSpeed; //con sprint:
+        if(isSprinting)
+        {
+            targetSpeed = sprintSpeed;
+        }
+        else
+        {
+            targetSpeed = _movementSpeed;
+        }
+
+        if(direction == Vector3.zero)
+        {
+            targetSpeed = 0;
+        }
+        
+        float currentSpeed = new Vector3(_controller.velocity.x, 0, _controller.velocity.z).magnitude;
+        float speedOffset = 0.1f;
+
+        if(currentSpeed < targetSpeed - speedOffset || currentSpeed > targetSpeed + speedOffset)
+        {
+            _speed = Mathf.Lerp(currentSpeed, targetSpeed, Time.deltaTime * _speedChangeRate);
+            _speed = Mathf.Round(_speed * 1000f) / 1000f;
+        }
+        else
+        {
+            _speed = targetSpeed;   
+        }
+
+        _animationSpeed = Mathf.Lerp(_animationSpeed, targetSpeed, Time.deltaTime * _speedChangeRate);
+
+        if(_animationSpeed < 0.1f)
+        {
+            _animationSpeed = 0;
+        }
+
+        _animator.SetFloat("Speed", _animationSpeed);
+
+
+        //_animator.SetFloat("Vertical", direction.magnitude);
+        //_animator.SetFloat("Horizontal", 0);
 
         if (direction != Vector3.zero)
+        {
+            targetAngle = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg + _mainCamera.eulerAngles.y;
+            float smoothAngle = Mathf.SmoothDampAngle(transform.eulerAngles.y, targetAngle, ref _turnSmoothVelocity, _smoothTime);
+            transform.rotation = Quaternion.Euler(0, smoothAngle, 0);
+            
+        }
+        Vector3 moveDirection = Quaternion.Euler(0, targetAngle, 0) * Vector3.forward;
+        _controller.Move(_speed * Time.deltaTime * moveDirection.normalized + _playerGravity * Time.deltaTime);
+
+        /*if (direction != Vector3.zero)
         {
             float targetAngle = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg + _mainCamera.eulerAngles.y;
             float smoothAngle = Mathf.SmoothDampAngle(transform.eulerAngles.y, targetAngle, ref _turnSmoothVelocity, _smoothTime);
             transform.rotation = Quaternion.Euler(0, smoothAngle, 0);
             Vector3 moveDirection = Quaternion.Euler(0, targetAngle, 0) * Vector3.forward;
             _controller.Move(moveDirection.normalized * _movementSpeed * Time.deltaTime);
-        }
+        }*/
     }
 
     void AimMovment()
     {
         Vector3 direction = new Vector3(_moveInput.x, 0, _moveInput.y);
-        _animator.SetFloat("Horizontal", _moveInput.x);
-        _animator.SetFloat("Vertical", _moveInput.y);
+        //_animator.SetFloat("Horizontal", _moveInput.x);
+        //_animator.SetFloat("Vertical", _moveInput.y);
         float targetAngle = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg + _mainCamera.eulerAngles.y;
         float smoothAngle = Mathf.SmoothDampAngle(transform.eulerAngles.y, _mainCamera.eulerAngles.y, ref _turnSmoothVelocity, _smoothTime);
         transform.rotation = Quaternion.Euler(0, smoothAngle, 0);
@@ -140,7 +197,7 @@ public class PlayerController : MonoBehaviour
         if (direction != Vector3.zero)
         {
             Vector3 moveDirection = Quaternion.Euler(0, targetAngle, 0) * Vector3.forward;
-            _controller.Move(moveDirection.normalized * _movementSpeed * Time.deltaTime);
+            //_controller.Move(moveDirection.normalized * _movementSpeed * Time.deltaTime);
         }
     }
 
@@ -185,14 +242,32 @@ public class PlayerController : MonoBehaviour
 
     void Jump()
     {
-        _animator.SetBool("IsJumping", true);
+        //_animator.SetBool("IsJumping", true);
+        _animator.SetBool("Jump", true);
         _playerGravity.y = Mathf.Sqrt(_jumpHeight * -2 * _gravity);
-        _controller.Move(_playerGravity * Time.deltaTime);
+        //_controller.Move(_playerGravity * Time.deltaTime);
     }
 
     void Gravity()
     {
-        if (!IsGrounded())
+        _animator.SetBool("Grounded", IsGrounded());
+
+        if(IsGrounded())
+        {
+            _animator.SetBool("Jump", false);
+            _animator.SetBool("Fall", false);
+
+            if(_playerGravity.y < 0)
+            {
+                _playerGravity.y = -2;
+            }
+        }
+        else
+        {
+            _animator.SetBool("Fall", true);
+            _playerGravity.y += _gravity * Time.deltaTime;
+        }
+        /*if (!IsGrounded())
         {
             //Añade la fuerza de gravedad a la y del personaje
             _playerGravity.y += _gravity * Time.deltaTime;
@@ -201,9 +276,9 @@ public class PlayerController : MonoBehaviour
         {
             _playerGravity.y = _gravity;
             _animator.SetBool("IsJumping", false);
-        }
+        }*/
         //Aplica la gravedad al personaje
-        _controller.Move(_playerGravity * Time.deltaTime);
+        //_controller.Move(_playerGravity * Time.deltaTime);
     }
 
     /*bool IsGrounded()
