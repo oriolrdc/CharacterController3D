@@ -7,6 +7,7 @@ public class Movement : MonoBehaviour
 {
     //Componentes
     private CharacterController _controller;
+    [SerializeField] private CapsuleCollider _collider;
     private Animator _animator;
     //Inputs 
     private InputAction _moveAction;
@@ -115,6 +116,7 @@ public class Movement : MonoBehaviour
             if (dashDirection == Vector3.zero)
             {
                 _controller.Move(transform.forward * _dashSpeed * Time.deltaTime);
+                //Physics.IgnoreLayerCollision(layermask1, layermask2, true/false);
             }
             else
             {
